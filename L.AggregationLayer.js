@@ -1,12 +1,24 @@
 //****************************************************************************************************
-//タイル統合レイヤークラス
+/*
+	L.AggregationLayer
+	Leaflet layer class is extension of L.GridLayer for aggregated processing of tiles. 
+*/
 //****************************************************************************************************
 L.AggregationLayer	= L.GridLayer.extend({
 	//********************************************************************************
-	//createTileは空のcanvasを生成（フラット化した座標番号をクラスとして付与）するだけ
+	//create identifier of tile for using key of object, id or class value of dom element.  
+	'getTileIdentifier'	: function ( coord_ ) {
+		return 'tile_'
+				+ String( coord_.x ) + '_'
+				+ String( coord_.y ) + '_'
+				+ String( coord_.z );
+	},
+	
+	//********************************************************************************
+	//createTile returns empty canvas element
 	'createTile'	: function ( coord_ ) {
-		const number	= String( L.getTileNumber(coord_) );
-		const canvas	= L.DomUtil.create( 'canvas', number );
+		const tileId	= this.getTileIdentifier( coord_ );
+		const canvas	= L.DomUtil.create( 'canvas', tileId );
 		const dimension	= this.getTileSize();
 		canvas.width	= dimension.x;
 		canvas.height	= dimension.y;
@@ -14,65 +26,53 @@ L.AggregationLayer	= L.GridLayer.extend({
 	},//function
 	
 	//********************************************************************************
-	//初期化関数
-	//オリジナルの関数を継承
-	//optionsに隠しパラメータを持たせるために再定義
+	//initializer
+	//Override for hidden property of layer
 	'initialize'	: function ( options_ ) {
-		//この拡張レイヤーにプライベート領域（private）を用意する
 		this._private	= {
 			'parameters'	: {},
 			'timestamp'		: 0
 		};
 		
 		//----------------------------------------
-		//元のメソッドからの継承
-		L.setOptions( this, options_ );
+		//Inheritance from parent
+		//L.setOptions( this, options_ );
+		L.GridLayer.prototype.initialize.call( this, options_ );
 		//----------------------------------------
 	},
 	
 	//********************************************************************************
-	//レイヤー追加時の実行関数
-	//オリジナルの関数を継承
-	//処理関数呼び出しとイベントの登録
 	'onAdd'	: function ( map_ ) {
 		//----------------------------------------
-		//元のメソッドからの継承
+		//Inheritance from parent
 		L.GridLayer.prototype.onAdd.call( this, map_ );
 		//----------------------------------------
 		
-		//変数の保存
+		//save 'this' variable
 		const that = this;
 		
-		//レイヤー追加時にタイル処理実行
+		//run tile processing function 
 		this.handler();
-		//地図の状態変更終了時にタイル処理
-		map_.on( 'moveend', function () {
-			that.handler();
-		});
-		map_.on( 'resize', function () {
+		
+		//When 'moveend' or 'resize' or 'orientationchange' event triggers tile processing function
+		map_.on( 'moveend resize orientationchange', function () {
 			that.handler();
 		});
 	},//function
 	
 	//********************************************************************************
-	//再描画関数
-	//オリジナルの関数を継承
-	//処理関数を呼び出す
 	'redraw'	: function () {
-		/*
+		//Inheritance from parent
+		L.GridLayer.prototype.redraw.call( this );
+		
+		//run tile processing function
 		this.handler();
 		
-		//----------------------------------------
-		//元のメソッドからの継承
-		return L.GridLayer.prototype.redraw.call( this );
-		*/
-		L.GridLayer.prototype.redraw.call( this );
-		this.handler();
 		return this;
 	},//function
 	
 	//********************************************************************************
-	//パラメータ設定関数
+	//setter for parameter
 	'setParameter'	: function ( _, __ ) {
 		if ( typeof _ === 'object' ) {
 			for ( var i in _ ) {
@@ -86,35 +86,35 @@ L.AggregationLayer	= L.GridLayer.extend({
 	},//function
 	
 	//********************************************************************************
-	//パラメータ取得関数
+	//getter for parameter
 	'getParameter'	: function ( name_ ) {
 		return this._private.parameters[name_];
 	},//function
 	
 	//********************************************************************************
-	//タイムスタンプ取得関数
+	//function for getting timestamp of this layer drawn at last time
 	'getTimestamp'	: function () {
 		return this._private.timestamp;
 	},//function
 	
 	//********************************************************************************
-	//地図状態変更時に実行する処理関数
+	//function of tile processing
 	'handler'	: function () {
-		//最終処理時刻を決める
+		//Get timestamp of this layer drawn at last time
 		const timestamp	= ( new Date() ).getTime();
-		//レイヤーオプションに最終処理時刻を登録する
+		//Set timestamp to layer
 		this._private.timestamp	= timestamp;
 		
-		//準備関数
+		//run 'prepare'
 		this.prepare( timestamp );
 		
-		//タイル別処理を配列に登録する
+		//run each tile handling function 'handleTile'
 		const results = [];
 		for ( let i in this._tiles ) {
 			results.push( this.handleTile(this._tiles[i].coords, timestamp) );
 		}
 		
-		//全てのタイル別プロミスの結果を処理する関数を実行する
+		//run aggregation
 		this.aggregation( results, timestamp );
 		
 		return this;
